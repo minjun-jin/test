@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+	<include resource="org/springframework/boot/logging/logback/base.xml" />
+	<appender name="GENEOS" class="ch.qos.logback.core.rolling.RollingFileAppender">
+		<filter class="ch.qos.logback.core.filter.EvaluatorFilter">
+			<evaluator class="ch.qos.logback.core.boolex.GeneosEventEvaluator">
+				<string>Completed</string>
+				<string>Started</string>
+			</evaluator>
+			<onMatch>NEUTRAL</onMatch>
+			<onMismatch>DENY</onMismatch>
+		</filter>
+		<encoder>
+			<pattern>${FILE_LOG_PATTERN}</pattern>
+			<charset>${FILE_LOG_CHARSET}</charset>
+		</encoder>
+		<file>${LOG_FILE}.geneos</file>
+		<rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+			<fileNamePattern>${LOGBACK_ROLLINGPOLICY_FILE_NAME_PATTERN:-${LOG_FILE}.geneos.%d{yyyy-MM-dd}.%i.gz}</fileNamePattern>
+			<cleanHistoryOnStart>${LOGBACK_ROLLINGPOLICY_CLEAN_HISTORY_ON_START:-false}</cleanHistoryOnStart>
+			<maxFileSize>${LOGBACK_ROLLINGPOLICY_MAX_FILE_SIZE:-10MB}</maxFileSize>
+			<totalSizeCap>${LOGBACK_ROLLINGPOLICY_TOTAL_SIZE_CAP:-0}</totalSizeCap>
+			<maxHistory>${LOGBACK_ROLLINGPOLICY_MAX_HISTORY:-7}</maxHistory>
+		</rollingPolicy>
+	</appender>
+	<logger name="root" level="DEBUG">
+		<appender-ref ref="GENEOS" />
+	</logger>
+</configuration>

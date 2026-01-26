@@ -1,27 +1,23 @@
 package com.jpmc.kcg.frw;
 
 import java.security.GeneralSecurityException;
+import java.security.Provider;
+import java.security.Security;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
 import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import javax.management.openmbean.InvalidKeyException;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.Strings;
-import org.bouncycastle.crypto.BlockCipher;
-import org.bouncycastle.crypto.BufferedBlockCipher;
-import org.bouncycastle.crypto.DefaultBufferedBlockCipher;
-import org.bouncycastle.crypto.engines.AESEngine;
-import org.bouncycastle.crypto.engines.SEEDEngine;
-import org.bouncycastle.crypto.modes.CBCBlockCipher;
-import org.bouncycastle.crypto.params.KeyParameter;
-import org.bouncycastle.crypto.params.ParametersWithIV;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.stereotype.Component;
 
@@ -38,29 +34,41 @@ public class FrwVault implements InitializingBean {
 
 	private final SystemProperties systemProperties;
 	private Map<String, Entry<byte[], byte[]>> vKeyMap = new TreeMap<>();
-	private ThreadLocal<Map<String, BufferedBlockCipher>> threadLocal = ThreadLocal.withInitial(TreeMap::new);
-	private BufferedBlockCipher newBufferedBlockCipher(boolean forEncryption, String key) throws GeneralSecurityException {
-		String str = StringUtils.join(String.valueOf(BooleanUtils.toInteger(forEncryption, Cipher.ENCRYPT_MODE, Cipher.DECRYPT_MODE)), key);
-		Map<String, BufferedBlockCipher> map = threadLocal.get();
-		BlockCipher blockCipher = CBCBlockCipher.newInstance(AESEngine.newInstance());
+	private ThreadLocal<Map<String, Cipher>> threadLocal = ThreadLocal.withInitial(TreeMap::new);
+	private Cipher newCipher(int opmode, String key) throws GeneralSecurityException {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 /////// SEED ///////////////////////////////////////////////////////////////////
-		if (Strings.CS.startsWith(key, "S")) {
-			blockCipher = CBCBlockCipher.newInstance(new SEEDEngine());
+		Provider provider = Security.getProvider("BC");
+		if (null == provider) {
+			Security.addProvider(new BouncyCastleProvider());
 		}
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-		BufferedBlockCipher bufferedBlockCipher = map.get(str);
-		if (null == bufferedBlockCipher) {
-			bufferedBlockCipher = new DefaultBufferedBlockCipher(blockCipher);
+		String str = StringUtils.join(String.valueOf(opmode), key);
+		Map<String, Cipher> map = threadLocal.get();
+		Cipher cipher = map.get(str);
+		if (null == cipher) {
 			Entry<byte[], byte[]> entry = vKeyMap.get(key);
-//			bufferedBlockCipher.init(forEncryption, new KeyParameter(entry.getKey()));
-			bufferedBlockCipher.init(forEncryption, new ParametersWithIV(new KeyParameter(entry.getKey()), entry.getValue()));
-			map.put(str, bufferedBlockCipher);
+			if (null == entry) {
+				throw new InvalidKeyException(key);
+			}
+			String transformation = "AES/CBC/PKCS5Padding";
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+/////////// SEED ///////////////////////////////////////////////////////////////
+			if (32 > entry.getKey().length) {
+				transformation = "SEED/CBC/PKCS5Padding";
+			}
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+			cipher = Cipher.getInstance(transformation);
+			cipher.init(opmode, new SecretKeySpec(entry.getKey(), "AES"), new IvParameterSpec(entry.getValue()));
+			map.put(str, cipher);
 		}
-		return bufferedBlockCipher;
+		return cipher;
 	}
 
 	@Override
@@ -96,12 +104,7 @@ public class FrwVault implements InitializingBean {
 	public String encB64Str(String key, String str) {
 		String enc = str;
 		try {
-			BufferedBlockCipher bufferedBlockCipher = newBufferedBlockCipher(true, key);
-			byte[] in = StringUtils.getBytes(str, "EUC-KR");
-			byte[] out = IOUtils.byteArray(bufferedBlockCipher.getOutputSize(in.length));
-			int outOff = bufferedBlockCipher.processBytes(in, 0, in.length, out, 0);
-			bufferedBlockCipher.doFinal(out, outOff);
-			enc = Base64.encodeBase64String(out);
+			enc = Base64.encodeBase64String(newCipher(Cipher.ENCRYPT_MODE, key).doFinal(StringUtils.getBytes(str, "EUC-KR")));
 		} catch (Throwable t) {
 			log.error("encB64Str {}, {}", key, str);
 		}
@@ -111,12 +114,7 @@ public class FrwVault implements InitializingBean {
 	public String decB64Str(String key, String str) {
 		String dec = str;
 		try {
-			BufferedBlockCipher bufferedBlockCipher = newBufferedBlockCipher(false, key);
-			byte[] in = Base64.decodeBase64(str);
-			byte[] out = IOUtils.byteArray(bufferedBlockCipher.getOutputSize(in.length));
-			int outOff = bufferedBlockCipher.processBytes(in, 0, in.length, out, 0);
-			bufferedBlockCipher.doFinal(out, outOff);
-			dec = IOUtils.toString(out, "EUC-KR");
+			dec = IOUtils.toString(newCipher(Cipher.DECRYPT_MODE, key).doFinal(Base64.decodeBase64(str)), "EUC-KR");
 		} catch (Throwable t) {
 			log.error("decB64Str {}, {}", key, str);
 		}
@@ -126,12 +124,7 @@ public class FrwVault implements InitializingBean {
 	public String encHexStr(String key, String str) {
 		String enc = str;
 		try {
-			BufferedBlockCipher bufferedBlockCipher = newBufferedBlockCipher(true, key);
-			byte[] in = StringUtils.getBytes(str, "EUC-KR");
-			byte[] out = IOUtils.byteArray(bufferedBlockCipher.getOutputSize(in.length));
-			int outOff = bufferedBlockCipher.processBytes(in, 0, in.length, out, 0);
-			bufferedBlockCipher.doFinal(out, outOff);
-			enc = Hex.encodeHexString(out);
+			enc = Hex.encodeHexString(newCipher(Cipher.ENCRYPT_MODE, key).doFinal(StringUtils.getBytes(str, "EUC-KR")));
 		} catch (Throwable t) {
 			log.error("encHexStr {}, {}", key, str);
 		}
@@ -141,12 +134,7 @@ public class FrwVault implements InitializingBean {
 	public String decHexStr(String key, String str) {
 		String dec = str;
 		try {
-			BufferedBlockCipher bufferedBlockCipher = newBufferedBlockCipher(false, key);
-			byte[] in = Hex.decodeHex(str);
-			byte[] out = IOUtils.byteArray(bufferedBlockCipher.getOutputSize(in.length));
-			int outOff = bufferedBlockCipher.processBytes(in, 0, in.length, out, 0);
-			bufferedBlockCipher.doFinal(out, outOff);
-			dec = IOUtils.toString(out, "EUC-KR");
+			dec = IOUtils.toString(newCipher(Cipher.DECRYPT_MODE, key).doFinal(Hex.decodeHex(str)), "EUC-KR");
 		} catch (Throwable t) {
 			log.error("decHexStr {}, {}", key, str);
 		}

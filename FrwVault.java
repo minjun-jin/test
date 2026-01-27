@@ -42,15 +42,12 @@ public class FrwVault implements InitializingBean {
 			if (null == byteArray) {
 				throw new InvalidKeyException(key);
 			}
-			String x = "SEED/ECB/ISO7816-4Padding";
-			if (16 < byteArray.length) {
-				x = "AES/CBC/PKCS7Padding";
-			}
-			cipher = Cipher.getInstance(x);
-			if (16 < byteArray.length) {
-				cipher.init(opmode, new SecretKeySpec(byteArray, StringUtils.substringBefore(x, '/')), new IvParameterSpec(IOUtils.byteArray(16)));
-			} else {
-				cipher.init(opmode, new SecretKeySpec(byteArray, StringUtils.substringBefore(x, '/')));
+			if (16 < byteArray.length) { // AES 256
+				cipher = Cipher.getInstance("AES/CBC/PKCS7Padding");
+				cipher.init(opmode, new SecretKeySpec(byteArray, "AES"), new IvParameterSpec(IOUtils.byteArray(16)));
+			} else { // SEED 128
+				cipher = Cipher.getInstance("SEED/ECB/ISO7816-4Padding");
+				cipher.init(opmode, new SecretKeySpec(byteArray, "SEED"));
 			}
 			map.put(str, cipher);
 		}

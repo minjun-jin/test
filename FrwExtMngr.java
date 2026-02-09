@@ -20,11 +20,16 @@ import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.TreeMap;
 
+import javax.net.SocketFactory;
+import javax.net.ssl.SSLSocketFactory;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Strings;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.json.JSONObject;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -33,7 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
-public class FrwExtMngr {
+public class FrwExtMngr implements InitializingBean {
 
 	@Data
 	public static class SsnStts {
@@ -61,13 +66,20 @@ public class FrwExtMngr {
 
 	@Autowired
 	private SystemProperties systemProperties;
+	private SocketFactory socketFactory;
+
+	@Override
+	public void afterPropertiesSet() throws Exception {
+		socketFactory = SSLSocketFactory.getDefault();
+	}
 
 	/**
 	 * 
 	 */
 	public Map<String, SsnStts> getSsnSttsMap() throws IOException {
 		Map<String, SsnStts> ssnSttsMap = new TreeMap<>();
-		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
+//		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
+		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 			socket.setKeepAlive(true);
 			socket.setReuseAddress(true);
 			socket.setSoLinger(true, 1);
@@ -82,7 +94,7 @@ public class FrwExtMngr {
 				byte[] byteArray = IOUtils.toByteArray(inputStream, 7);
 				tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
 				if (!StringUtils.isNumeric(StringUtils.left(tlgCtt, 4)) ||
-					!StringUtils.endsWith(tlgCtt, "HDR")) {
+					!Strings.CS.endsWith(tlgCtt, "HDR")) {
 					throw new IOException(tlgCtt);
 				}
 				try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
@@ -119,7 +131,8 @@ public class FrwExtMngr {
 	 */
 	public Map<String, LogFile> getLogFileMap(String fileDt) throws IOException {
 		Map<String, LogFile> logFileMap = new TreeMap<>();
-		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
+//		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
+		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 			socket.setKeepAlive(true);
 			socket.setReuseAddress(true);
 			socket.setSoLinger(true, 1);
@@ -139,7 +152,7 @@ public class FrwExtMngr {
 				byte[] byteArray = IOUtils.toByteArray(inputStream, 7);
 				tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
 				if (!StringUtils.isNumeric(StringUtils.left(tlgCtt, 4)) ||
-					!StringUtils.endsWith(tlgCtt, "HDR")) {
+					!Strings.CS.endsWith(tlgCtt, "HDR")) {
 					throw new IOException(tlgCtt);
 				}
 				try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
@@ -185,7 +198,8 @@ public class FrwExtMngr {
 		log.debug("{}", fileNm);
 		File file = FileUtils.getFile(systemProperties.getShrd().getBack(), StringUtils.join(fileNm, ".",
 		String.valueOf(System.currentTimeMillis())));
-		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
+//		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
+		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 			socket.setKeepAlive(true);
 			socket.setReuseAddress(true);
 			socket.setSoLinger(true, 1);
@@ -202,7 +216,7 @@ public class FrwExtMngr {
 				byte[] byteArray = IOUtils.toByteArray(inputStream, 7);
 				tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
 				if (!StringUtils.isNumeric(StringUtils.left(tlgCtt, 4)) ||
-					!StringUtils.endsWith(tlgCtt, "HDR")) {
+					!Strings.CS.endsWith(tlgCtt, "HDR")) {
 					throw new IOException(tlgCtt);
 				}
 				try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
@@ -235,7 +249,8 @@ public class FrwExtMngr {
 		LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")))));
 		FileUtils.deleteQuietly(FileUtils.getFile(systemProperties.getShrd().getRecv(), fileNm));
 		FileUtils.deleteQuietly(FileUtils.getFile(systemProperties.getShrd().getSend(), fileNm));
-		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
+//		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
+		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 			socket.setKeepAlive(true);
 			socket.setReuseAddress(true);
 			socket.setSoLinger(true, 1);
@@ -252,7 +267,7 @@ public class FrwExtMngr {
 				byte[] byteArray = IOUtils.toByteArray(inputStream, 7);
 				tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
 				if (!StringUtils.isNumeric(StringUtils.left(tlgCtt, 4)) ||
-					!StringUtils.endsWith(tlgCtt, "HDR")) {
+					!Strings.CS.endsWith(tlgCtt, "HDR")) {
 					throw new IOException(tlgCtt);
 				}
 				try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
@@ -276,7 +291,8 @@ public class FrwExtMngr {
 		if (!file.exists()) {
 			throw new FileNotFoundException(fileNm);
 		}
-		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
+//		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
+		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 			socket.setKeepAlive(true);
 			socket.setReuseAddress(true);
 			socket.setSoLinger(true, 1);
@@ -298,7 +314,7 @@ public class FrwExtMngr {
 				byte[] byteArray = IOUtils.toByteArray(inputStream, 7);
 				tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
 				if (!StringUtils.isNumeric(StringUtils.left(tlgCtt, 4)) ||
-					!StringUtils.endsWith(tlgCtt, "HDR")) {
+					!Strings.CS.endsWith(tlgCtt, "HDR")) {
 					throw new IOException(tlgCtt);
 				}
 				try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
@@ -328,7 +344,8 @@ public class FrwExtMngr {
 		log.debug("{}", fileNm);
 		File file = FileUtils.getFile(systemProperties.getShrd().getBack(), StringUtils.join(fileNm, "_",
 		LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))));
-		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
+//		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
+		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 			socket.setKeepAlive(true);
 			socket.setReuseAddress(true);
 			socket.setSoLinger(true, 1);
@@ -345,7 +362,7 @@ public class FrwExtMngr {
 				byte[] byteArray = IOUtils.toByteArray(inputStream, 7);
 				tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
 				if (!StringUtils.isNumeric(StringUtils.left(tlgCtt, 4)) ||
-					!StringUtils.endsWith(tlgCtt, "HDR")) {
+					!Strings.CS.endsWith(tlgCtt, "HDR")) {
 					throw new IOException(tlgCtt);
 				}
 				try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
@@ -378,7 +395,8 @@ public class FrwExtMngr {
 	public ExtRslt resultExt(String apiTrxNo, String apiTrxDtm, String fileNm) throws IOException {
 		log.debug("{}, {}, {}", apiTrxNo, apiTrxDtm, fileNm);
 		ExtRslt extRslt = new ExtRslt();
-		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
+//		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
+		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 			socket.setKeepAlive(true);
 			socket.setReuseAddress(true);
 			socket.setSoLinger(true, 1);
@@ -396,7 +414,7 @@ public class FrwExtMngr {
 				byte[] byteArray = IOUtils.toByteArray(inputStream, 7);
 				tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
 				if (!StringUtils.isNumeric(StringUtils.left(tlgCtt, 4)) ||
-					!StringUtils.endsWith(tlgCtt, "HDR")) {
+					!Strings.CS.endsWith(tlgCtt, "HDR")) {
 					throw new IOException(tlgCtt);
 				}
 				try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {

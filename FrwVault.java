@@ -90,7 +90,7 @@ public class FrwVault implements InitializingBean {
 			enc = Base64.encodeBase64String(newCipher(Cipher.ENCRYPT_MODE, key).doFinal(StringUtils.getBytes(str, "EUC-KR")));
 		} catch (Throwable t) {
 			log.error("encB64Str {}, {}", key, str);
-			log.error("encB64Str", t);
+//			log.error("encB64Str", t);
 		}
 		return enc;
 	}
@@ -101,7 +101,7 @@ public class FrwVault implements InitializingBean {
 			dec = IOUtils.toString(newCipher(Cipher.DECRYPT_MODE, key).doFinal(Base64.decodeBase64(str)), "EUC-KR");
 		} catch (Throwable t) {
 			log.error("decB64Str {}, {}", key, str);
-			log.error("decB64Str", t);
+//			log.error("decB64Str", t);
 		}
 		return dec;
 	}
@@ -112,7 +112,7 @@ public class FrwVault implements InitializingBean {
 			enc = Hex.encodeHexString(newCipher(Cipher.ENCRYPT_MODE, key).doFinal(StringUtils.getBytes(str, "EUC-KR")));
 		} catch (Throwable t) {
 			log.error("encHexStr {}, {}", key, str);
-			log.error("encHexStr", t);
+//			log.error("encHexStr", t);
 		}
 		return enc;
 	}
@@ -123,7 +123,7 @@ public class FrwVault implements InitializingBean {
 			dec = IOUtils.toString(newCipher(Cipher.DECRYPT_MODE, key).doFinal(Hex.decodeHex(str)), "EUC-KR");
 		} catch (Throwable t) {
 			log.error("decHexStr {}, {}", key, str);
-			log.error("decHexStr", t);
+//			log.error("decHexStr", t);
 		}
 		return dec;
 	}

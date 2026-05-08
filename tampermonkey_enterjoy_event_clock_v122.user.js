@@ -1,6 +1,8 @@
 // ==UserScript==
 // @name         EnterJoy Event Clock
 // @namespace    http://tampermonkey.net/
+// @updateURL    https://raw.githubusercontent.com/minjun-jin/test/refs/heads/main/tampermonkey_enterjoy_event_clock_v122.user.js
+// @downloadURL  https://raw.githubusercontent.com/minjun-jin/test/refs/heads/main/tampermonkey_enterjoy_event_clock_v122.user.js
 // @version      1.22
 // @description  Displays an event clock with periodic alarms
 // @author       AnonymousEnjo

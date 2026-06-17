@@ -1,6 +1,8 @@
 // ==UserScript==
 // @name         EnterJoy Point Clock
 // @namespace    http://tampermonkey.net/
+// @updateURL    https://raw.githubusercontent.com/minjun-jin/test/refs/heads/main/tampermonkey_enterjoy_point_clock_v123.user.js
+// @downloadURL  https://raw.githubusercontent.com/minjun-jin/test/refs/heads/main/tampermonkey_enterjoy_point_clock_v123.user.js
 // @version      1.23
 // @description  Displays a point clock with target-time alarms
 // @author       AnonymousEnjo

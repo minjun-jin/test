@@ -23,7 +23,6 @@ import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 
 import javax.net.ServerSocketFactory;
-import javax.net.ssl.SSLServerSocketFactory;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -35,7 +34,6 @@ import org.apache.commons.lang3.Strings;
 import org.apache.commons.lang3.ThreadUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.commons.lang3.math.NumberUtils;
-import org.apache.commons.lang3.reflect.MethodUtils;
 import org.slf4j.MDC;
 
 import lombok.RequiredArgsConstructor;
@@ -53,10 +51,10 @@ public class ExtFCmn implements Runnable {
 	@Override
 	public void run() {
 		Entry<String, String> ssnStts = ssnSttsMap.get(propertyName);
-		File alog = FileUtils.getFile(properties.getProperty("PATH_ALOG", "/home/ec2-user/apps/main/kcg_ext/logs"));
-		File back = FileUtils.getFile(properties.getProperty("PATH_BACK", "/apps/kcg/shrd/back"));
-		File recv = FileUtils.getFile(properties.getProperty("PATH_RECV", "/apps/kcg/shrd/recv"));
-		File send = FileUtils.getFile(properties.getProperty("PATH_SEND", "/apps/kcg/shrd/send"));
+		File alog = FileUtils.getFile(properties.getProperty("PATH_ALOG", "/home/ec2-user/log"));
+		File back = FileUtils.getFile(properties.getProperty("PATH_BACK", "/home/ec2-user/ext/shrd/back"));
+		File recv = FileUtils.getFile(properties.getProperty("PATH_RECV", "/home/ec2-user/ext/shrd/recv"));
+		File send = FileUtils.getFile(properties.getProperty("PATH_SEND", "/home/ec2-user/ext/shrd/send"));
 		int port = NumberUtils.toInt(properties.getProperty(propertyName));
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,10 +62,9 @@ public class ExtFCmn implements Runnable {
 		MDC.put("key", StringUtils.lowerCase(StringUtils.substringBetween(propertyName, "_")));
 		Thread.currentThread().setName(propertyName);
 		log.info("start");
-		ServerSocketFactory serverSocketFactory = SSLServerSocketFactory.getDefault();
+		ServerSocketFactory serverSocketFactory = ServerSocketFactory.getDefault();
 		while (!executorService.isShutdown()) {
 			ssnStts.setValue("0");
-//			try (ServerSocket serverSocket = EXUtils.newServerSocket(port)) {
 			try (ServerSocket serverSocket = serverSocketFactory.createServerSocket(port)) {
 				serverSocket.setReuseAddress(true);
 				serverSocket.setSoTimeout(1000);
@@ -106,30 +103,30 @@ public class ExtFCmn implements Runnable {
 							}
 							tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
 							if (Strings.CS.startsWith(tlgCtt, "0020HDRREQPOLL")) { // 회선시험
-								log.trace("<{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.trace("<{}]", tlgCtt);
 								StringBuilder sb = new StringBuilder(tlgCtt);
 								sb.setCharAt(9, 'S');
 								tlgCtt = sb.toString();
-								log.trace(">{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.trace(">{}]", tlgCtt);
 								IOUtils.write(tlgCtt, outputStream, "EUC-KR");
 							} else if (Strings.CS.startsWith(tlgCtt, "0020HDRREQSTOP")) { // 정상종료
-								log.debug("<{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.debug("<{}]", tlgCtt);
 								StringBuilder sb = new StringBuilder(tlgCtt);
 								sb.setCharAt(9, 'S');
 								tlgCtt = sb.toString();
-								log.debug(">{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.debug(">{}]", tlgCtt);
 								IOUtils.write(tlgCtt, outputStream, "EUC-KR");
 								executorService.shutdown();
 							} else if (Strings.CS.startsWith(tlgCtt, "0020HDRREQKILL")) { // 강제종료
-								log.debug("<{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.debug("<{}]", tlgCtt);
 								StringBuilder sb = new StringBuilder(tlgCtt);
 								sb.setCharAt(9, 'S');
 								tlgCtt = sb.toString();
-								log.debug(">{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.debug(">{}]", tlgCtt);
 								IOUtils.write(tlgCtt, outputStream, "EUC-KR");
 								EXUtils.exit(1);
 							} else if (Strings.CS.startsWith(tlgCtt, "0020HDRREQSTTS")) { // 모니터링
-								log.trace("<{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.trace("<{}]", tlgCtt);
 								StringBuilder sb = new StringBuilder(tlgCtt);
 								sb.setCharAt(9, 'S');
 								sb.append(StringUtils.leftPad(String.valueOf(ssnSttsMap.size()), 3, '0'));
@@ -139,14 +136,14 @@ public class ExtFCmn implements Runnable {
 								}
 								sb.replace(0, 4, StringUtils.leftPad(String.valueOf(sb.length() - 4), 4, '0'));
 								tlgCtt = sb.toString();
-								log.trace(">{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.trace(">{}]", tlgCtt);
 								IOUtils.write(tlgCtt, outputStream, "EUC-KR");
 							} else if (Strings.CS.startsWith(tlgCtt, "0040HDRREQFDEL")) { // 파일삭제
-								log.debug("<{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.debug("<{}]", tlgCtt);
 								StringBuilder sb = new StringBuilder(tlgCtt);
 								sb.setCharAt(9, 'S');
 								tlgCtt = sb.toString();
-								log.debug(">{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.debug(">{}]", tlgCtt);
 								IOUtils.write(tlgCtt, outputStream, "EUC-KR");
 								String fileNm = StringUtils.stripEnd(StringUtils.left(StringUtils.right(tlgCtt, 20), 8), StringUtils.SPACE);
 								FileUtils.deleteQuietly(FileUtils.getFile(back, StringUtils.join(fileNm, "_",
@@ -154,11 +151,11 @@ public class ExtFCmn implements Runnable {
 								FileUtils.deleteQuietly(FileUtils.getFile(recv, fileNm));
 								FileUtils.deleteQuietly(FileUtils.getFile(send, fileNm));
 							} else if (Strings.CS.startsWith(tlgCtt, "0040HDRREQFSND")) { // 파일송신
-								log.debug("<{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.debug("<{}]", tlgCtt);
 								StringBuilder sb = new StringBuilder(tlgCtt);
 								sb.setCharAt(9, 'S');
 								tlgCtt = sb.toString();
-								log.debug(">{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.debug(">{}]", tlgCtt);
 								IOUtils.write(tlgCtt, outputStream, "EUC-KR");
 								String fileNm = StringUtils.stripEnd(StringUtils.left(StringUtils.right(tlgCtt, 20), 8), StringUtils.SPACE);
 								File file = FileUtils.getFile(back, StringUtils.join(fileNm, "_",
@@ -171,7 +168,7 @@ public class ExtFCmn implements Runnable {
 								StandardCopyOption.REPLACE_EXISTING);
 								log.info("copied {}, {}", file, path);
 							} else if (Strings.CS.startsWith(tlgCtt, "0040HDRREQFRCV")) { // 파일수신
-								log.debug("<{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.debug("<{}]", tlgCtt);
 								String fileNm = StringUtils.stripEnd(StringUtils.left(StringUtils.right(tlgCtt, 20), 8), StringUtils.SPACE);
 								File file = FileUtils.getFile(recv, fileNm);
 //								long fileSz = FileUtils.sizeOf(file);
@@ -185,7 +182,7 @@ public class ExtFCmn implements Runnable {
 								sb.setLength(4 + 20 + 8);
 								sb.append(StringUtils.leftPad(String.valueOf(fileSz), 12, '0'));
 								tlgCtt = sb.toString();
-								log.debug(">{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.debug(">{}]", tlgCtt);
 								IOUtils.write(tlgCtt, outputStream, "EUC-KR");
 								if (!file.exists()) {
 									return;
@@ -194,15 +191,46 @@ public class ExtFCmn implements Runnable {
 									long l = IOUtils.copyLarge(fileInputStream, outputStream);
 									log.info(">{}, {}", file, l);
 								}
-							} else if (Strings.CS.startsWithAny(tlgCtt, "0020HDRREQLLST", "0040HDRREQLLST")) { // 로그목록
-								log.debug("<{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+							} else if (Strings.CS.startsWith(tlgCtt, "0048HDRREQFBAK")) { // 파일수신
+								log.debug("<{}]", tlgCtt);
+								String fileNm = StringUtils.stripEnd(StringUtils.left (StringUtils.right(tlgCtt, 28), 8), StringUtils.SPACE);
+								String fileDt = StringUtils.stripEnd(StringUtils.right(StringUtils.right(tlgCtt, 28), 8), StringUtils.SPACE);
+								File file = FileUtils.getFile(back, StringUtils.join(fileNm, "_", fileDt));
+//								long fileSz = FileUtils.sizeOf(file);
+								long fileSz = 0L;
+								if (file != null &&
+									file.exists()) {
+									fileSz = FileUtils.sizeOf(file);
+								}
 								StringBuilder sb = new StringBuilder(tlgCtt);
 								sb.setCharAt(9, 'S');
-								sb.setLength(20 + 3);
+								sb.setLength(4 + 20 + 8 + 8);
+								sb.append(StringUtils.leftPad(String.valueOf(fileSz), 12, '0'));
+								tlgCtt = sb.toString();
+								log.debug(">{}]", tlgCtt);
+								IOUtils.write(tlgCtt, outputStream, "EUC-KR");
+								if (!file.exists()) {
+									return;
+								}
+								try (FileInputStream fileInputStream = FileUtils.openInputStream(file)) {
+									long l = IOUtils.copyLarge(fileInputStream, outputStream);
+									log.info(">{}, {}", file, l);
+								}
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+							} else if (Strings.CS.startsWithAny(tlgCtt, "0020HDRREQLLST", "0040HDRREQLLST")) { // 로그목록
+								log.debug("<{}]", tlgCtt);
+								StringBuilder sb = new StringBuilder(tlgCtt);
+								sb.setCharAt(9, 'S');
+								sb.setLength(4 + 20);
 								IOFileFilter ioFileFilter;
 								if (Strings.CS.startsWithAny(tlgCtt, "0040HDRREQLLST")) {
 									ioFileFilter = WildcardFileFilter.builder().setWildcards(StringUtils.join("*",
-										StringUtils.stripEnd(StringUtils.left(StringUtils.right(tlgCtt, 20), 8), StringUtils.SPACE),
+										StringUtils.stripEnd(StringUtils.right(tlgCtt, 20), StringUtils.SPACE),
 									"*")).get();
 								} else {
 									ioFileFilter = WildcardFileFilter.builder().setWildcards("*.log").get();
@@ -224,10 +252,10 @@ public class ExtFCmn implements Runnable {
 								}
 								sb.replace(0, 4, StringUtils.leftPad(String.valueOf(sb.length() - 4), 4, '0'));
 								tlgCtt = sb.toString();
-								log.debug(">{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.debug(">{}]", tlgCtt);
 								IOUtils.write(tlgCtt, outputStream, "EUC-KR");
 							} else if (Strings.CS.startsWith(tlgCtt, "0100HDRREQLRCV")) { // 로그수신
-								log.debug("<{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.debug("<{}]", tlgCtt);
 								String fileNm = StringUtils.stripEnd(StringUtils.left(StringUtils.right(tlgCtt, 100), 88), StringUtils.SPACE);
 								File file = FileUtils.getFile(alog, fileNm);
 								long fileSz = 0L;
@@ -240,7 +268,7 @@ public class ExtFCmn implements Runnable {
 								sb.setLength(4 + 20 + 88);
 								sb.append(StringUtils.leftPad(String.valueOf(fileSz), 12, '0'));
 								tlgCtt = sb.toString();
-								log.debug(">{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.debug(">{}]", tlgCtt);
 								IOUtils.write(tlgCtt, outputStream, "EUC-KR");
 								if (!file.exists()) {
 									return;
@@ -250,11 +278,11 @@ public class ExtFCmn implements Runnable {
 									log.info(">{}, {}", file, l);
 								}
 							} else if (Strings.CS.startsWith(tlgCtt, "0100HDRREQRSLT")) { // 전송결과요구/통보
-								log.debug("<{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.debug("<{}]", tlgCtt);
 								StringBuilder sb = new StringBuilder(tlgCtt);
 								sb.setCharAt(9, 'S');
 								tlgCtt = sb.toString();
-								log.debug(">{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+								log.debug(">{}]", tlgCtt);
 								IOUtils.write(tlgCtt, outputStream, "EUC-KR");
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

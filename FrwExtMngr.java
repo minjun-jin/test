@@ -21,7 +21,6 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import javax.net.SocketFactory;
-import javax.net.ssl.SSLSocketFactory;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -30,12 +29,13 @@ import org.apache.commons.lang3.Strings;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.json.JSONObject;
 import org.springframework.beans.factory.InitializingBean;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import lombok.Data;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+@RequiredArgsConstructor
 @Slf4j
 @Component
 public class FrwExtMngr implements InitializingBean {
@@ -64,13 +64,12 @@ public class FrwExtMngr implements InitializingBean {
 
 	}
 
-	@Autowired
-	private SystemProperties systemProperties;
+	private final SystemProperties systemProperties;
 	private SocketFactory socketFactory;
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
-		socketFactory = SSLSocketFactory.getDefault();
+		socketFactory = SocketFactory.getDefault();
 	}
 
 	/**
@@ -78,7 +77,6 @@ public class FrwExtMngr implements InitializingBean {
 	 */
 	public Map<String, SsnStts> getSsnSttsMap() throws IOException {
 		Map<String, SsnStts> ssnSttsMap = new TreeMap<>();
-//		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 			socket.setKeepAlive(true);
 			socket.setReuseAddress(true);
@@ -131,7 +129,6 @@ public class FrwExtMngr implements InitializingBean {
 	 */
 	public Map<String, LogFile> getLogFileMap(String fileDt) throws IOException {
 		Map<String, LogFile> logFileMap = new TreeMap<>();
-//		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 			socket.setKeepAlive(true);
 			socket.setReuseAddress(true);
@@ -198,7 +195,6 @@ public class FrwExtMngr implements InitializingBean {
 		log.debug("{}", fileNm);
 		File file = FileUtils.getFile(systemProperties.getShrd().getBack(), StringUtils.join(fileNm, ".",
 		String.valueOf(System.currentTimeMillis())));
-//		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 			socket.setKeepAlive(true);
 			socket.setReuseAddress(true);
@@ -249,7 +245,6 @@ public class FrwExtMngr implements InitializingBean {
 		LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")))));
 		FileUtils.deleteQuietly(FileUtils.getFile(systemProperties.getShrd().getRecv(), fileNm));
 		FileUtils.deleteQuietly(FileUtils.getFile(systemProperties.getShrd().getSend(), fileNm));
-//		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 			socket.setKeepAlive(true);
 			socket.setReuseAddress(true);
@@ -291,7 +286,6 @@ public class FrwExtMngr implements InitializingBean {
 		if (!file.exists()) {
 			throw new FileNotFoundException(fileNm);
 		}
-//		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 			socket.setKeepAlive(true);
 			socket.setReuseAddress(true);
@@ -344,7 +338,6 @@ public class FrwExtMngr implements InitializingBean {
 		log.debug("{}", fileNm);
 		File file = FileUtils.getFile(systemProperties.getShrd().getBack(), StringUtils.join(fileNm, "_",
 		LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))));
-//		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 			socket.setKeepAlive(true);
 			socket.setReuseAddress(true);
@@ -392,10 +385,61 @@ public class FrwExtMngr implements InitializingBean {
 	/**
 	 * 
 	 */
+	public File receiveExt(String fileNm, String fileDt) throws IOException {
+		log.debug("{}, {}", fileNm, fileDt);
+		File file = FileUtils.getFile(systemProperties.getShrd().getBack(), StringUtils.join(fileNm, "_",
+		fileDt));
+		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
+			socket.setKeepAlive(true);
+			socket.setReuseAddress(true);
+			socket.setSoLinger(true, 1);
+			socket.setSoTimeout(1000);
+			socket.setTcpNoDelay(true);
+			log.info("{}", socket);
+			try (InputStream inputStream = socket.getInputStream();
+				OutputStream outputStream = socket.getOutputStream()) {
+				String tlgCtt = StringUtils.join("0048HDRREQFBAK", LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMddHHmmss")),
+				StringUtils.rightPad(StringUtils.left(fileNm, 8), 8),
+				StringUtils.rightPad(StringUtils.left(fileDt, 8), 8),
+				StringUtils.repeat('0', 12));
+				log.info(">{}]", tlgCtt);
+				IOUtils.write(tlgCtt, outputStream, "EUC-KR");
+				byte[] byteArray = IOUtils.toByteArray(inputStream, 7);
+				tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
+				if (!StringUtils.isNumeric(StringUtils.left(tlgCtt, 4)) ||
+					!Strings.CS.endsWith(tlgCtt, "HDR")) {
+					throw new IOException(tlgCtt);
+				}
+				try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
+					IOUtils.write(byteArray, byteArrayOutputStream);
+					byteArray = IOUtils.toByteArray(inputStream, NumberUtils.toInt(StringUtils.left(tlgCtt, 4)) - 3);
+					IOUtils.write(byteArray, byteArrayOutputStream);
+					byteArray = byteArrayOutputStream.toByteArray();
+				}
+				tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
+				log.info("<{}]", tlgCtt);
+				long fileSz = NumberUtils.toLong(StringUtils.right(tlgCtt, 12));
+				if (0 >= fileSz) {
+					throw new FileNotFoundException(fileNm);
+				}
+				try (FileOutputStream fileOutputStream = FileUtils.openOutputStream(file)) {
+					long l = IOUtils.copyLarge(inputStream, fileOutputStream);
+					log.info(">{}, {}", file, l);
+				}
+			}
+		}
+		Path path = Files.copy(file.toPath(), FileUtils.getFile(systemProperties.getShrd().getRecv(), fileNm).toPath(),
+		StandardCopyOption.REPLACE_EXISTING);
+		log.info("copied {}, {}", file, path);
+		return path.toFile();
+	}
+
+	/**
+	 * 
+	 */
 	public ExtRslt resultExt(String apiTrxNo, String apiTrxDtm, String fileNm) throws IOException {
 		log.debug("{}, {}, {}", apiTrxNo, apiTrxDtm, fileNm);
 		ExtRslt extRslt = new ExtRslt();
-//		try (Socket socket = new Socket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
 			socket.setKeepAlive(true);
 			socket.setReuseAddress(true);

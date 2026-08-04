@@ -282,6 +282,14 @@ public class ExtFRcv2 implements Runnable {
 						}
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+/////////////////////// 일자보정 ///////////////////////////////////////////////
+						LocalDate localDate = LocalDate.now();
+						if (Strings.CS.equals(fileName, "") &&
+							17 >= LocalTime.now().getHour()) {
+							localDate = localDate.minusDays(1L);
+						}
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 						if (useGZip) {
 //							compressedfileName = jsonObject.optString("compressed_file_name");
@@ -289,21 +297,13 @@ public class ExtFRcv2 implements Runnable {
 //							fileName = compressedfileName;
 //							fileSize = compressedfileSize;
 							gzipName = StringUtils.join(fileName, "_",
-							LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")), ".gz");
+							localDate.format(DateTimeFormatter.ofPattern("yyyyMMdd")), ".gz");
 							gzip = FileUtils.getFile(back, gzipName);
 						}
 						String sftpOneTimeId = jsonObject.optString("sftp_one_time_id");
 						String sftpOneTimePasswd = jsonObject.optString("sftp_one_time_passwd");
 						File file = FileUtils.getFile(back, StringUtils.join(fileName, "_",
-						LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))));
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-/////////////////////// 파일보정 ///////////////////////////////////////////////
-						if (Strings.CS.equals(fileName, "") &&
-							17 >= LocalTime.now().getHour()) {
-							file = FileUtils.getFile(back, StringUtils.join(fileName, "_",
-							LocalDate.now().minusDays(1L).format(DateTimeFormatter.ofPattern("yyyyMMdd"))));
-						}
+						localDate.format(DateTimeFormatter.ofPattern("yyyyMMdd"))));
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 /////////////////////// 파일수신 ///////////////////////////////////////////////

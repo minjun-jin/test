@@ -191,10 +191,7 @@ public class ExtFCmn implements Runnable {
 									long l = IOUtils.copyLarge(fileInputStream, outputStream);
 									log.info(">{}, {}", file, l);
 								}
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-							} else if (Strings.CS.startsWith(tlgCtt, "0048HDRREQFBAK")) { // 파일수신
+							} else if (Strings.CS.startsWith(tlgCtt, "0048HDRREQFBAK")) { // 백업수신
 								log.debug("<{}]", tlgCtt);
 								String fileNm = StringUtils.stripEnd(StringUtils.left (StringUtils.right(tlgCtt, 28), 8), StringUtils.SPACE);
 								String fileDt = StringUtils.stripEnd(StringUtils.right(StringUtils.right(tlgCtt, 28), 8), StringUtils.SPACE);
@@ -219,9 +216,6 @@ public class ExtFCmn implements Runnable {
 									long l = IOUtils.copyLarge(fileInputStream, outputStream);
 									log.info(">{}, {}", file, l);
 								}
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
 							} else if (Strings.CS.startsWithAny(tlgCtt, "0020HDRREQLLST", "0040HDRREQLLST")) { // 로그목록
 								log.debug("<{}]", tlgCtt);
 								StringBuilder sb = new StringBuilder(tlgCtt);

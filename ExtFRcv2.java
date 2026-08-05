@@ -282,14 +282,6 @@ public class ExtFRcv2 implements Runnable {
 						}
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-/////////////////////// 일자보정 ///////////////////////////////////////////////
-						LocalDate localDate = LocalDate.now();
-						if (Strings.CS.equals(fileName, "") &&
-							17 >= LocalTime.now().getHour()) {
-							localDate = localDate.minusDays(1L);
-						}
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 						if (useGZip) {
 //							compressedfileName = jsonObject.optString("compressed_file_name");
@@ -297,13 +289,13 @@ public class ExtFRcv2 implements Runnable {
 //							fileName = compressedfileName;
 //							fileSize = compressedfileSize;
 							gzipName = StringUtils.join(fileName, "_",
-							localDate.format(DateTimeFormatter.ofPattern("yyyyMMdd")), ".gz");
+							LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")), ".gz");
 							gzip = FileUtils.getFile(back, gzipName);
 						}
 						String sftpOneTimeId = jsonObject.optString("sftp_one_time_id");
 						String sftpOneTimePasswd = jsonObject.optString("sftp_one_time_passwd");
 						File file = FileUtils.getFile(back, StringUtils.join(fileName, "_",
-						localDate.format(DateTimeFormatter.ofPattern("yyyyMMdd"))));
+						LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))));
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 /////////////////////// 파일수신 ///////////////////////////////////////////////
@@ -385,6 +377,26 @@ public class ExtFRcv2 implements Runnable {
 							log.error(ExceptionUtils.getRootCauseMessage(t), t);
 							resultCode = "R0006"; // 기타 알수 없는 오류 발생
 						}
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////// 전일자보정 /////////////////////////////////////////////
+						if (Strings.CS.equals(fileName, "") &&
+							17 >= LocalTime.now().getHour()) {
+							FileUtils.deleteQuietly(FileUtils.getFile(recv, fileName));
+							if (useGZip) {
+								Path path = Files.move(gzip.toPath(), FileUtils.getFile(back, StringUtils.join(fileName, "_",
+								LocalDate.now().minusDays(1L).format(DateTimeFormatter.ofPattern("yyyyMMdd")), ".gz")).toPath(),
+								StandardCopyOption.REPLACE_EXISTING);
+								log.info("moved {}, {}", gzip, path);
+							}
+							Path path = Files.move(file.toPath(), FileUtils.getFile(back, StringUtils.join(fileName, "_",
+							LocalDate.now().minusDays(1L).format(DateTimeFormatter.ofPattern("yyyyMMdd")))).toPath(),
+							StandardCopyOption.REPLACE_EXISTING);
+							log.info("moved {}, {}", file, path);
+						}
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 						FileUtils.deleteQuietly(temp);
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

@@ -22,6 +22,8 @@ import java.util.Properties;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 
+import javax.net.SocketFactory;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -29,7 +31,6 @@ import org.apache.commons.lang3.Strings;
 import org.apache.commons.lang3.ThreadUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.commons.lang3.math.NumberUtils;
-import org.apache.commons.lang3.reflect.MethodUtils;
 import org.json.JSONObject;
 import org.slf4j.MDC;
 
@@ -80,6 +81,7 @@ public class ExtFRcv1 implements Runnable {
 		MDC.put("key", StringUtils.lowerCase(StringUtils.substringBetween(propertyName, "_")));
 		Thread.currentThread().setName(propertyName);
 		log.info("start");
+		SocketFactory socketFactory = SocketFactory.getDefault();
 		while (!executorService.isShutdown()) {
 			ssnStts.setValue("0");
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,7 +89,7 @@ public class ExtFRcv1 implements Runnable {
 /////////// 차단시간처리 ///////////////////////////////////////////////////////
 			LocalTime localTime = LocalTime.now();
 			if (23 == localTime.getHour() &&
-				30 <= localTime.getMinute()) {
+				45 <= localTime.getMinute()) {
 				ssnStts.setValue("0");
 				for (int i = 0; i < 60 && !executorService.isShutdown(); i++) {
 					ThreadUtils.sleepQuietly(Duration.ofSeconds(1L));
@@ -100,6 +102,7 @@ public class ExtFRcv1 implements Runnable {
 			synchronized (ssnSttsMap) {
 				ssnStts.setValue("1");
 				if (Strings.CS.equals(sndStts.getValue(), "1")) {
+					ssnStts.setValue("0");
 					ThreadUtils.sleepQuietly(Duration.ofSeconds(1L));
 					continue;
 				}
@@ -108,7 +111,7 @@ public class ExtFRcv1 implements Runnable {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 			ssnStts.setValue("1");
-			try (Socket socket = EXUtils.newSocket(host, port)) {
+			try (Socket socket = socketFactory.createSocket(host, port)) {
 				socket.setKeepAlive(true);
 				socket.setReuseAddress(true);
 				socket.setSoLinger(true, 1);
@@ -177,7 +180,7 @@ public class ExtFRcv1 implements Runnable {
 						}
 						tryCnt = 0;
 						tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
-						log.info("<{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+						log.info("<{}]", tlgCtt);
 						if (Strings.CS.endsWith(StringUtils.left(tlgCtt, 14), "0610")) { // 업무개시통보
 							kft0610 = new Kft0610(byteArray);
 							log.debug("{}", kft0610);
@@ -208,7 +211,7 @@ public class ExtFRcv1 implements Runnable {
 						}
 						tryCnt = 0;
 						tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
-						log.info("<{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+						log.info("<{}]", tlgCtt);
 						if (Strings.CS.endsWith(StringUtils.left(tlgCtt, 14), "0600")) { // 업무종료지시
 							kft0600 = new Kft0600(byteArray);
 							log.debug("{}", kft0600);
@@ -363,7 +366,7 @@ public class ExtFRcv1 implements Runnable {
 									}
 									tryCnt = 0;
 									tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
-									log.info("<{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+									log.info("<{}]", tlgCtt);
 									if (Strings.CS.endsWith(StringUtils.left(tlgCtt, 14), "0310")) { // 결번DATA송신
 										kft0310 = new Kft0310(byteArray);
 										log.debug("{}", kft0310);
@@ -498,7 +501,7 @@ public class ExtFRcv1 implements Runnable {
 //							}
 //							tryCnt = 0;
 //							tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
-//							log.info("<{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+//							log.info("<{}]", tlgCtt);
 //							kft0600 = new Kft0600(byteArray); // 파일송신완료지시
 //							log.debug("{}", kft0600);
 //							break;
@@ -562,7 +565,7 @@ public class ExtFRcv1 implements Runnable {
 						}
 						tryCnt = 0;
 						tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
-						log.info("<{}]", MethodUtils.invokeExactMethod(StringUtils.defaultString(tlgCtt), "toString"));
+						log.info("<{}]", tlgCtt);
 						kft0600 = new Kft0600(byteArray);
 						log.debug("{}", kft0600);
 						break;

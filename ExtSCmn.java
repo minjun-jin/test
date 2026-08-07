@@ -7,11 +7,10 @@ import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
@@ -37,26 +36,23 @@ import lombok.extern.slf4j.Slf4j;
 
 @RequiredArgsConstructor
 @Slf4j
-public class ExtSSnd implements Runnable {
+public class ExtSCmn implements Runnable {
 
 	private final Properties properties;
 	private final ExecutorService executorService;
 	private final Map<String, BlockingQueue<Entry<String, String>>> blckQueMap;
 	private final Map<String, Entry<String, String>> ssnSttsMap;
-	private final Map<String, LocalDateTime> sndDttmMap;
 	private final String propertyName;
+	private String msgNbr;
 
 	@Override
 	public void run() {
 		Entry<String, String> ssnStts = ssnSttsMap.get(propertyName);
-		boolean isEcho = Boolean.getBoolean("echo");
 		boolean isTest = Strings.CS.endsWithAny(propertyName, "_S", "_SS", "_SSS", "_SIM");
-		long nWait = NumberUtils.toLong(properties.getProperty(StringUtils.join(StringUtils.left(Strings.CS.replace(propertyName, "SSND_", "TSND_"), 8), "_W")));
 		int tryMax = isTest ? 5 : // 시뮬레이터타임아웃강제보정
-		NumberUtils.toInt(properties.getProperty(StringUtils.join(StringUtils.left(Strings.CS.replace(propertyName, "SSND_", "TSND_"), 8), "_X")));
-		String rcvBlckQueNm = StringUtils.left(Strings.CS.replace(propertyName, "SSND_", "QRCV_"), 8);
-		String sndBlckQueNm = isTest ? StringUtils.left(propertyName, 8) : // 시뮬레이터전송큐강제보정
-		StringUtils.left(Strings.CS.replace(propertyName, "SSND_", "QSND_"), 8);
+		NumberUtils.toInt(properties.getProperty(StringUtils.join(StringUtils.left(Strings.CS.replace(propertyName, "SCMN_", "TCMN_"), 8), "_X")));
+		String rcvBlckQueNm = StringUtils.left(Strings.CS.replace(propertyName, "SCMN_", "QRCV_"), 8);
+		String sndBlckQueNm = StringUtils.left(Strings.CS.replace(propertyName, "SCMN_", isTest ? "SSND_" : "QSND_"), 8); // 시뮬레이터전송큐강제보정
 		BlockingQueue<Entry<String, String>> rcvBlckQue = blckQueMap.get(rcvBlckQueNm);
 		BlockingQueue<Entry<String, String>> sndBlckQue = blckQueMap.get(sndBlckQueNm);
 		String[] stringArray = StringUtils.split(properties.getProperty(propertyName), ':');
@@ -66,7 +62,7 @@ public class ExtSSnd implements Runnable {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 		MDC.put("key", StringUtils.lowerCase(StringUtils.substringBetween(propertyName, "_")));
-		Thread.currentThread().setName(propertyName);
+		Thread.currentThread().setName(Strings.CS.replace(propertyName, "SCMN_", "SRCV_"));
 		log.info("start");
 		AtomicInteger atomicInteger = new AtomicInteger(0);
 		SocketFactory socketFactory = SocketFactory.getDefault();
@@ -83,7 +79,8 @@ public class ExtSSnd implements Runnable {
 				try (InputStream inputStream = socket.getInputStream()) {
 					executorService.execute(() -> {
 						MDC.put("key", StringUtils.lowerCase(StringUtils.substringBetween(propertyName, "_")));
-						Thread.currentThread().setName(propertyName);
+						Thread.currentThread().setName(Strings.CS.replace(propertyName, "SCMN_", "SSND_"));
+						log.info("start");
 						Entry<String, String> entry = null;
 						try (OutputStream outputStream = socket.getOutputStream()) {
 							int tryCnt = 0;
@@ -101,7 +98,24 @@ public class ExtSSnd implements Runnable {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////// 회선시험 ///////////////////////////////////
-									String tlgCtt = StringUtils.join("0020HDRREQPOLL", LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMddHHmmss")));
+									String tlgCtt;
+									if (isTest) {
+										tlgCtt = StringUtils.join("0020HDRREQPOLL", LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMddHHmmss")));
+									} else if (Strings.CS.contains(propertyName, "_ENT_")) { // 회선시험
+										msgNbr = StringUtils.join("99",
+										LocalTime.now().format(DateTimeFormatter.ofPattern("HHmmssSSS"))); // 11
+										tlgCtt = EXUtils.newTestEnt(StringUtils.left(msgNbr, 11));
+									} else if (Strings.CS.contains(propertyName, "_ATI_")) { // 회선시험
+										msgNbr = StringUtils.join("05709",
+										LocalTime.now().format(DateTimeFormatter.ofPattern("HHmmssSSS"))); // 12
+										tlgCtt = EXUtils.newTestAti(StringUtils.left(msgNbr, 12));
+									} else if (Strings.CS.contains(propertyName, "_GRO_")) { // 회선시험
+										msgNbr = StringUtils.join("0579",
+										LocalTime.now().format(DateTimeFormatter.ofPattern("HHmmssSSS"))); // 10
+										tlgCtt = EXUtils.newTestGro(StringUtils.left(msgNbr, 10));
+									} else {
+										continue;
+									}
 									log.trace(">{}]", tlgCtt);
 									IOUtils.write(tlgCtt, outputStream, "EUC-KR");
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,49 +127,11 @@ public class ExtSSnd implements Runnable {
 								atomicInteger.set(0);
 								String tlgCtt = entry.getKey();
 								log.info(">{}]", tlgCtt);
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////// 타행이체보정 ///////////////////////////////////
-								if (Strings.CS.contains(propertyName, "_HOF_") && 0L < nWait &&
-									Strings.CS.endsWithAny(StringUtils.left(tlgCtt, 20), "ELB0200400000", "ELB0400400000")) { // 타행이체 | 타행이체취소
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-									if (isEcho &&
-										isTest) {
-										StringBuilder sb = new StringBuilder(tlgCtt);
-										sb.setCharAt(12, '1');
-										sb.setCharAt(20, '2');
-										sb.replace(24, 27, "000");
-										tlgCtt = sb.toString();
-										log.info("<{}]", tlgCtt);
-										int i = Message.DEFAULT_PRIORITY;
-										EXUtils.write(i, rcvBlckQueNm, tlgCtt);
-										rcvBlckQue.put(Map.entry(tlgCtt, String.valueOf(i)));
-										continue;
-									}
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-									String key = StringUtils.join(StringUtils.substring(tlgCtt, 70, 73), // 개설기관대표코드
-									StringUtils.substring(tlgCtt, 80, 96)); // 수취계좌번호
-									LocalDateTime sndDttm = sndDttmMap.get(key);
-									if (ObjectUtils.isNotEmpty(sndDttm)) {
-										long l = nWait - ChronoUnit.MILLIS.between(sndDttm, LocalDateTime.now());
-										if (0 < l) {
-											ThreadUtils.sleepQuietly(Duration.ofMillis(l));
-										}
-									}
-									sndDttmMap.put(key, LocalDateTime.now());
-								}
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
 								byte[] byteArray = StringUtils.getBytes(tlgCtt, "EUC-KR");
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////// 헤더보정 ///////////////////////////////////////
-								byte[] tempArray = StringUtils.getBytes(StringUtils.join(StringUtils.leftPad(String.valueOf(byteArray.length - 4), 4, '0'), Strings.CS.contains(propertyName, "_ATI_") ? "ATI" : "HDR"), StandardCharsets.US_ASCII);
+								byte[] tempArray = StringUtils.getBytes(StringUtils.leftPad(String.valueOf(byteArray.length - 4), 4, '0'), "EUC-KR");
 								System.arraycopy(tempArray, 0, byteArray, 0, tempArray.length);
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,6 +154,7 @@ public class ExtSSnd implements Runnable {
 						} finally {
 							IOUtils.closeQuietly(socket);
 						}
+						log.info("stop");
 					});
 //					int tryCnt = 0;
 					atomicInteger.set(0);
@@ -215,14 +192,30 @@ public class ExtSSnd implements Runnable {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 /////////////////////// 회선시험 ///////////////////////////////////////////////
-						if (Strings.CS.startsWith(tlgCtt, "0020HDRRESPOLL")) {
+						if (Strings.CS.startsWith(tlgCtt, "0020HDRRESPOLL") ||
+							Strings.CS.contains(propertyName, "_ENT_") && Strings.CS.endsWith(StringUtils.left(tlgCtt, 31), msgNbr) ||
+							Strings.CS.contains(propertyName, "_ATI_") && Strings.CS.endsWith(StringUtils.left(tlgCtt, 55), msgNbr) ||
+							Strings.CS.contains(propertyName, "_GRO_") && Strings.CS.endsWith(StringUtils.left(tlgCtt, 49), msgNbr)) { // 회선시험
 							log.trace("<{}]", tlgCtt);
 							continue;
 						}
-						throw new IOException(tlgCtt);
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+						log.info("<{}]", tlgCtt);
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////// 시뮬레이터전문강제보정 /////////////////////////////////
+						if (isTest) {
+							tlgCtt = StringUtils.join(StringUtils.left(tlgCtt, 4), "SIM",
+							StringUtils.substring(tlgCtt, 7));
+						}
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+						int i = Message.DEFAULT_PRIORITY;
+						EXUtils.write(i, rcvBlckQueNm, tlgCtt);
+						rcvBlckQue.put(Map.entry(tlgCtt, String.valueOf(i)));
 					}
 				}
 			} catch (Throwable t) {

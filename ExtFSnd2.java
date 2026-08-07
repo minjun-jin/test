@@ -19,17 +19,22 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.ZipException;
+import java.util.zip.GZIPOutputStream;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.filefilter.FalseFileFilter;
+import org.apache.commons.io.filefilter.IOFileFilter;
+import org.apache.commons.io.filefilter.RegexFileFilter;
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Strings;
 import org.apache.commons.lang3.ThreadUtils;
@@ -54,7 +59,7 @@ import lombok.extern.slf4j.Slf4j;
 @Generated
 @RequiredArgsConstructor
 @Slf4j
-public class ExtFRcv2 implements Runnable {
+public class ExtFSnd2 implements Runnable {
 
 	private final Properties properties;
 	private final ExecutorService executorService;
@@ -65,14 +70,15 @@ public class ExtFRcv2 implements Runnable {
 	@Override
 	public void run() {
 		Entry<String, String> ssnStts = ssnSttsMap.get(propertyName);
-//		Entry<String, String> sndStts = ssnSttsMap.get(Strings.CS.replace(propertyName, "FRCV_", "FSND_"));
+//		Entry<String, String> rcvStts = ssnSttsMap.get(Strings.CS.replace(propertyName, "FSND_", "FRCV_"));
 		String cmnBlckQueNm = "QCMN_BFT";
 		BlockingQueue<Entry<String, String>> cmnBlckQue = blckQueMap.get(cmnBlckQueNm);
+		IOFileFilter ioFileFilter = new RegexFileFilter(properties.getProperty(Strings.CS.replace(propertyName, "FSND_", "FLTR_")));
 		File shrd = FileUtils.getFile(properties.getProperty("PATH_SHRD", "/home/ec2-user/ext/shrd"));
 		File back = FileUtils.getFile(properties.getProperty("PATH_BACK", "/home/ec2-user/ext/shrd/back"));
-		File recv = FileUtils.getFile(properties.getProperty("PATH_RECV", "/home/ec2-user/ext/shrd/recv"));
+		File send = FileUtils.getFile(properties.getProperty("PATH_SEND", "/home/ec2-user/ext/shrd/send"));
 		File auth = FileUtils.getFile(shrd, StringUtils.join("kcg_", StringUtils.lowerCase(StringUtils.substringBetween(propertyName, "_")), ".token"));
-		File temp = FileUtils.getFile(shrd, StringUtils.join("kcg_", StringUtils.lowerCase(StringUtils.substringBetween(propertyName, "_")), ".recv2"));
+		File temp = FileUtils.getFile(shrd, StringUtils.join("kcg_", StringUtils.lowerCase(StringUtils.substringBetween(propertyName, "_")), ".send2"));
 		boolean useGZip = false;
 		boolean useTemp = false;
 		String[] stringArray = StringUtils.split(properties.getProperty(propertyName), '@');
@@ -102,6 +108,17 @@ public class ExtFRcv2 implements Runnable {
 				45 <= localTime.getMinute()) {
 				ssnStts.setValue("0");
 				for (int i = 0; i < 60 && !executorService.isShutdown(); i++) {
+					ThreadUtils.sleepQuietly(Duration.ofSeconds(1L));
+				}
+				continue;
+			}
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+/////////// 송신파일목록 ///////////////////////////////////////////////////////
+			Collection<File> collection = FileUtils.listFiles(send, ioFileFilter, FalseFileFilter.FALSE);
+			if (ObjectUtils.isEmpty(collection)) {
+				ssnStts.setValue("0");
+				for (int i = 0; i < 600 && !executorService.isShutdown(); i++) {
 					ThreadUtils.sleepQuietly(Duration.ofSeconds(1L));
 				}
 				continue;
@@ -177,20 +194,74 @@ public class ExtFRcv2 implements Runnable {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 				String resultCode = "R0000"; // 처리 정상
-				while (!executorService.isShutdown() && Strings.CS.equals(resultCode, "R0000")) {
+				Iterator<File> iterator = collection.iterator();
+				while (!executorService.isShutdown() && iterator.hasNext()) {
+					File file = iterator.next();
+//					long fileSize = FileUtils.sizeOf(file);
+					long fileSize = 0L;
+					if (file != null &&
+						file.exists()) {
+						fileSize = FileUtils.sizeOf(file);
+					}
+					String fileName = StringUtils.upperCase(file.getName());
+					String gzipName = null;
+					File gzip = null;
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-/////////////////// 수신개시요구/통보 //////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+					String propNm = fileName;
+					if (6 < StringUtils.length(propNm)) {
+						propNm = StringUtils.left(propNm, 4);
+					}
+//					int tlgBytLen = 4096;
+					stringArray = StringUtils.splitPreserveAllTokens(properties.getProperty(propNm, ""), ',');
+//					if (0 < stringArray.length) {
+//						int recBytLen = NumberUtils.toInt(stringArray[0]);
+//						if (0 < recBytLen) {
+//							tlgBytLen = 34 + ((4096 - 34) / recBytLen * recBytLen);
+//						}
+//					}
+					useGZip = false;
+					if (1 < stringArray.length) {
+						useGZip = Strings.CI.equalsAny(stringArray[1], "true", "gzip", "gz");
+					}
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+					if (useGZip) {
+						gzipName = StringUtils.join(fileName, "_",
+						LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")), ".gz");
+						gzip = FileUtils.getFile(back, gzipName);
+					}
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+/////////////////// 송신개시요구/통보 //////////////////////////////////////////
 					useTemp = temp.exists();
 					if (useTemp) {
 						bodyStr = FileUtils.readFileToString(temp, StandardCharsets.UTF_8);
 						log.debug("!{}", bodyStr);
 						jsonObject = new JSONObject(bodyStr);
-						log.debug("!{}", jsonObject.toString(2));
+						if (Strings.CS.equals(fileName, jsonObject.optString("file_name"))) {
+							log.debug("!{}", jsonObject.toString(2));
+						} else { // 작업하던파일까지건너뛰기
+							continue;
+						}
 					} else {
 						jsonObject = new JSONObject();
-						jsonObject.put("file_name", "");
-						jsonObject.put("compressed_file_name", "");
+						jsonObject.put("file_name", fileName);
+						jsonObject.put("file_size", fileSize);
+						try (InputStream inputStream = FileUtils.openInputStream(file)) {
+							jsonObject.put("sha1_value", StringUtils.upperCase(DigestUtils.sha1Hex(inputStream)));
+						}
+						if (useGZip) {
+							try (InputStream inputStream = FileUtils.openInputStream(file)) {
+								try (OutputStream outputStream = new GZIPOutputStream(FileUtils.openOutputStream(gzip))) {
+									IOUtils.copyLarge(inputStream, outputStream);
+								}
+							}
+							jsonObject.put("compressed_file_name", fileName);
+							jsonObject.put("compressed_file_size", FileUtils.sizeOf(gzip));
+						}
 						log.debug(">{}", jsonObject.toString(2));
 						bodyStr = String.valueOf(jsonObject);
 						log.debug(">{}", bodyStr);
@@ -204,7 +275,7 @@ public class ExtFRcv2 implements Runnable {
 						while (true) {
 							HttpResponse<String> httpResponse;
 							try {
-								HttpRequest httpRequest = HttpRequest.newBuilder(URI.create(StringUtils.join(http, "/transfer/recvinit"))).headers(
+								HttpRequest httpRequest = HttpRequest.newBuilder(URI.create(StringUtils.join(http, "/transfer/sendinit"))).headers(
 									"Content-Type", "application/json; charset=UTF-8",
 									"Authorization", StringUtils.join(tokenType, " ", accessToken),
 									"api_trx_no", apiTrxNo,
@@ -235,13 +306,19 @@ public class ExtFRcv2 implements Runnable {
 							break;
 						}
 						if (HttpURLConnection.HTTP_OK           != statusCode) {
-							break;
+							continue;
 						}
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 /////////////////////// 복구정보추가설정 ///////////////////////////////////////
 						jsonObject.put("api_trx_no", apiTrxNo);
 						jsonObject.put("api_trx_dtm", apiTrxDtm);
+						jsonObject.put("file_name", fileName);
+						jsonObject.put("file_size", fileSize);
+						if (useGZip) {
+							jsonObject.put("compressed_file_name", fileName);
+							jsonObject.put("compressed_file_size", FileUtils.sizeOf(gzip));
+						}
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,51 +331,12 @@ public class ExtFRcv2 implements Runnable {
 ////////////////////////////////////////////////////////////////////////////////
 					resultCode = "R0006"; // 기타 알수 없는 오류 발생
 					if (Strings.CS.equals(rspCode, "A0000")) { // 정상 완료
-						String sha1Value = jsonObject.optString("sha1_value");
-						String fileName = jsonObject.optString("file_name");
-						long fileSize = jsonObject.optLong("file_size");
-//						String compressedfileName = null;
-//						long compressedfileSize = 0L;
-						String gzipName = null;
-						File gzip = null;
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-						String propNm = fileName;
-						if (6 < StringUtils.length(propNm)) {
-							propNm = StringUtils.left(propNm, 4);
-						}
-//						int tlgBytLen = 4096;
-						stringArray = StringUtils.splitPreserveAllTokens(properties.getProperty(propNm, ""), ',');
-//						if (0 < stringArray.length) {
-//							int recBytLen = NumberUtils.toInt(stringArray[0]);
-//							if (0 < recBytLen) {
-//								tlgBytLen = 34 + ((4096 - 34) / recBytLen * recBytLen);
-//							}
-//						}
-						useGZip = false;
-						if (1 < stringArray.length) {
-							useGZip = Strings.CI.equalsAny(stringArray[1], "true", "gzip", "gz");
-						}
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-						if (useGZip) {
-//							compressedfileName = jsonObject.optString("compressed_file_name");
-//							compressedfileSize = jsonObject.optLong("compressed_file_size");
-//							fileName = compressedfileName;
-//							fileSize = compressedfileSize;
-							gzipName = StringUtils.join(fileName, "_",
-							LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")), ".gz");
-							gzip = FileUtils.getFile(back, gzipName);
-						}
+						resultCode = "R0000"; // 처리 정상
 						String sftpOneTimeId = jsonObject.optString("sftp_one_time_id");
 						String sftpOneTimePasswd = jsonObject.optString("sftp_one_time_passwd");
-						File file = FileUtils.getFile(back, StringUtils.join(fileName, "_",
-						LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))));
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-/////////////////////// 파일수신 ///////////////////////////////////////////////
+/////////////////////// 파일송신 ///////////////////////////////////////////////
 						FileUtils.write(temp, String.valueOf(jsonObject), StandardCharsets.UTF_8);
 						JSch jsch = new JSch();
 						try {
@@ -314,53 +352,22 @@ public class ExtFRcv2 implements Runnable {
 									SftpProgressMonitor sftpProgressMonitor = new SftpProgressMonitorImpl();
 									if (useGZip) {
 										if (useTemp) {
-											channelSftp.get(StringUtils.join(fileName, ".gz"), gzip.getAbsolutePath(), sftpProgressMonitor, ChannelSftp.RESUME);
+											channelSftp.put(gzip.getAbsolutePath(), StringUtils.join(fileName, ".gz"), sftpProgressMonitor, ChannelSftp.RESUME);
 										} else {
-											channelSftp.get(StringUtils.join(fileName, ".gz"), gzip.getAbsolutePath(), sftpProgressMonitor);
-										}
-										try (InputStream inputStream = new GZIPInputStream(FileUtils.openInputStream(gzip))) {
-											try (OutputStream outputStream = FileUtils.openOutputStream(file)) {
-												IOUtils.copyLarge(inputStream, outputStream);
-											}
-										} catch (Throwable t) {
-											throw new ZipException(ExceptionUtils.getRootCauseMessage(t));
+											channelSftp.put(gzip.getAbsolutePath(), StringUtils.join(fileName, ".gz"), sftpProgressMonitor);
 										}
 									} else {
 										if (useTemp) {
-											channelSftp.get(fileName, file.getAbsolutePath(), sftpProgressMonitor, ChannelSftp.RESUME);
+											channelSftp.put(file.getAbsolutePath(), fileName, sftpProgressMonitor, ChannelSftp.RESUME);
 										} else {
-											channelSftp.get(fileName, file.getAbsolutePath(), sftpProgressMonitor);
+											channelSftp.put(file.getAbsolutePath(), fileName, sftpProgressMonitor);
 										}
 									}
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////// 파일 해시값 검증 ///////////////////////////
-									try (InputStream inputStream = FileUtils.openInputStream(file)) {
-										if (Strings.CI.equals(sha1Value, DigestUtils.sha1Hex(inputStream))) {
-											Path path = Files.copy(file.toPath(), FileUtils.getFile(recv, fileName).toPath(),
-											StandardCopyOption.REPLACE_EXISTING);
-											log.info("copied {}, {}", file, path);
-											resultCode = "R0000"; // 처리 정상
-										} else { // 검증 오류
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////// 재수신을 위해 파일 삭제 ////////////
-											if (useGZip) {
-												FileUtils.deleteQuietly(gzip);
-											}
-											FileUtils.deleteQuietly(file);
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-											resultCode = "R0005"; // 파일 해시값 검증 오류
-										}
-									}
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-								} catch (ZipException e) {
-									log.error(ExceptionUtils.getRootCauseMessage(e));
-									resultCode = "R0003"; // 압축파일 해제 오류
+									Path path = Files.move(file.toPath(), FileUtils.getFile(back, StringUtils.join(fileName, "_",
+									LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")))).toPath(),
+									StandardCopyOption.REPLACE_EXISTING);
+									log.debug("moved {}, {}", file, path);
+									resultCode = "R0000"; // 처리 정상
 								} catch (SftpException e) {
 									log.error(ExceptionUtils.getRootCauseMessage(e));
 									resultCode = "R0002"; // 파일 송수신중 오류가 발생하여 전송 미완료
@@ -380,23 +387,6 @@ public class ExtFRcv2 implements Runnable {
 						FileUtils.deleteQuietly(temp);
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-/////////////////////// 전일자파일보정 /////////////////////////////////////////
-//						if (Strings.CS.equals(fileName, "") &&
-//							17 >= LocalTime.now().getHour()) {
-//							FileUtils.deleteQuietly(FileUtils.getFile(recv, fileName));
-//							if (useGZip) {
-//								Path path = Files.move(gzip.toPath(), FileUtils.getFile(back, StringUtils.join(fileName, "_",
-//								LocalDate.now().minusDays(1L).format(DateTimeFormatter.ofPattern("yyyyMMdd")), ".gz")).toPath(),
-//								StandardCopyOption.REPLACE_EXISTING);
-//								log.info("moved {}, {}", gzip, path);
-//							}
-//							Path path = Files.move(file.toPath(), FileUtils.getFile(back, StringUtils.join(fileName, "_",
-//							LocalDate.now().minusDays(1L).format(DateTimeFormatter.ofPattern("yyyyMMdd")))).toPath(),
-//							StandardCopyOption.REPLACE_EXISTING);
-//							log.info("moved {}, {}", file, path);
-//						}
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
 /////////////////////// 파일송수신정보전송 /////////////////////////////////////
 						if (Strings.CS.equals(resultCode, "R0000")) {
 							jsonObject = new JSONObject();
@@ -404,7 +394,7 @@ public class ExtFRcv2 implements Runnable {
 							jsonObject.put("api_trx_dtm", apiTrxDtm);
 							jsonObject.put("file_name", fileName);
 							jsonObject.put("file_size", fileSize);
-							jsonObject.put("tr_dvsn_cd", "R");
+							jsonObject.put("tr_dvsn_cd", "S");
 							log.debug(">{}", jsonObject.toString(2));
 							bodyStr = String.valueOf(jsonObject);
 							log.debug(">{}", bodyStr);

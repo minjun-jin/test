@@ -191,31 +191,31 @@ public class ExtFCmn implements Runnable {
 									long l = IOUtils.copyLarge(fileInputStream, outputStream);
 									log.info(">{}, {}", file, l);
 								}
-							} else if (Strings.CS.startsWith(tlgCtt, "0048HDRREQFBAK")) { // 백업수신
-								log.debug("<{}]", tlgCtt);
-								String fileNm = StringUtils.stripEnd(StringUtils.left (StringUtils.right(tlgCtt, 28), 8), StringUtils.SPACE);
-								String fileDt = StringUtils.stripEnd(StringUtils.right(StringUtils.right(tlgCtt, 28), 8), StringUtils.SPACE);
-								File file = FileUtils.getFile(back, StringUtils.join(fileNm, "_", fileDt));
+//							} else if (Strings.CS.startsWith(tlgCtt, "0048HDRREQFBAK")) { // 백업수신
+//								log.debug("<{}]", tlgCtt);
+//								String fileNm = StringUtils.stripEnd(StringUtils.left (StringUtils.right(tlgCtt, 28), 8), StringUtils.SPACE);
+//								String fileDt = StringUtils.stripEnd(StringUtils.right(StringUtils.right(tlgCtt, 28), 8), StringUtils.SPACE);
+//								File file = FileUtils.getFile(back, StringUtils.join(fileNm, "_", fileDt));
 //								long fileSz = FileUtils.sizeOf(file);
-								long fileSz = 0L;
-								if (file != null &&
-									file.exists()) {
-									fileSz = FileUtils.sizeOf(file);
-								}
-								StringBuilder sb = new StringBuilder(tlgCtt);
-								sb.setCharAt(9, 'S');
-								sb.setLength(4 + 20 + 8 + 8);
-								sb.append(StringUtils.leftPad(String.valueOf(fileSz), 12, '0'));
-								tlgCtt = sb.toString();
-								log.debug(">{}]", tlgCtt);
-								IOUtils.write(tlgCtt, outputStream, "EUC-KR");
-								if (!file.exists()) {
-									return;
-								}
-								try (FileInputStream fileInputStream = FileUtils.openInputStream(file)) {
-									long l = IOUtils.copyLarge(fileInputStream, outputStream);
-									log.info(">{}, {}", file, l);
-								}
+//								long fileSz = 0L;
+//								if (file != null &&
+//									file.exists()) {
+//									fileSz = FileUtils.sizeOf(file);
+//								}
+//								StringBuilder sb = new StringBuilder(tlgCtt);
+//								sb.setCharAt(9, 'S');
+//								sb.setLength(4 + 20 + 8 + 8);
+//								sb.append(StringUtils.leftPad(String.valueOf(fileSz), 12, '0'));
+//								tlgCtt = sb.toString();
+//								log.debug(">{}]", tlgCtt);
+//								IOUtils.write(tlgCtt, outputStream, "EUC-KR");
+//								if (!file.exists()) {
+//									return;
+//								}
+//								try (FileInputStream fileInputStream = FileUtils.openInputStream(file)) {
+//									long l = IOUtils.copyLarge(fileInputStream, outputStream);
+//									log.info(">{}, {}", file, l);
+//								}
 							} else if (Strings.CS.startsWithAny(tlgCtt, "0020HDRREQLLST", "0040HDRREQLLST")) { // 로그목록
 								log.debug("<{}]", tlgCtt);
 								StringBuilder sb = new StringBuilder(tlgCtt);

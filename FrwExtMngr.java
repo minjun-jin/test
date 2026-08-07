@@ -385,54 +385,54 @@ public class FrwExtMngr implements InitializingBean {
 	/**
 	 * 
 	 */
-	public File receiveExt(String fileNm, String fileDt) throws IOException {
-		log.debug("{}, {}", fileNm, fileDt);
-		File file = FileUtils.getFile(systemProperties.getShrd().getBack(), StringUtils.join(fileNm, "_",
-		fileDt));
-		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
-			socket.setKeepAlive(true);
-			socket.setReuseAddress(true);
-			socket.setSoLinger(true, 1);
-			socket.setSoTimeout(1000);
-			socket.setTcpNoDelay(true);
-			log.info("{}", socket);
-			try (InputStream inputStream = socket.getInputStream();
-				OutputStream outputStream = socket.getOutputStream()) {
-				String tlgCtt = StringUtils.join("0048HDRREQFBAK", LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMddHHmmss")),
-				StringUtils.rightPad(StringUtils.left(fileNm, 8), 8),
-				StringUtils.rightPad(StringUtils.left(fileDt, 8), 8),
-				StringUtils.repeat('0', 12));
-				log.info(">{}]", tlgCtt);
-				IOUtils.write(tlgCtt, outputStream, "EUC-KR");
-				byte[] byteArray = IOUtils.toByteArray(inputStream, 7);
-				tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
-				if (!StringUtils.isNumeric(StringUtils.left(tlgCtt, 4)) ||
-					!Strings.CS.endsWith(tlgCtt, "HDR")) {
-					throw new IOException(tlgCtt);
-				}
-				try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
-					IOUtils.write(byteArray, byteArrayOutputStream);
-					byteArray = IOUtils.toByteArray(inputStream, NumberUtils.toInt(StringUtils.left(tlgCtt, 4)) - 3);
-					IOUtils.write(byteArray, byteArrayOutputStream);
-					byteArray = byteArrayOutputStream.toByteArray();
-				}
-				tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
-				log.info("<{}]", tlgCtt);
-				long fileSz = NumberUtils.toLong(StringUtils.right(tlgCtt, 12));
-				if (0 >= fileSz) {
-					throw new FileNotFoundException(fileNm);
-				}
-				try (FileOutputStream fileOutputStream = FileUtils.openOutputStream(file)) {
-					long l = IOUtils.copyLarge(inputStream, fileOutputStream);
-					log.info(">{}, {}", file, l);
-				}
-			}
-		}
-		Path path = Files.copy(file.toPath(), FileUtils.getFile(systemProperties.getShrd().getRecv(), fileNm).toPath(),
-		StandardCopyOption.REPLACE_EXISTING);
-		log.info("copied {}, {}", file, path);
-		return path.toFile();
-	}
+//	public File receiveExt(String fileNm, String fileDt) throws IOException {
+//		log.debug("{}, {}", fileNm, fileDt);
+//		File file = FileUtils.getFile(systemProperties.getShrd().getBack(), StringUtils.join(fileNm, "_",
+//		fileDt));
+//		try (Socket socket = socketFactory.createSocket(systemProperties.getExt().getHost(), systemProperties.getExt().getPort())) {
+//			socket.setKeepAlive(true);
+//			socket.setReuseAddress(true);
+//			socket.setSoLinger(true, 1);
+//			socket.setSoTimeout(1000);
+//			socket.setTcpNoDelay(true);
+//			log.info("{}", socket);
+//			try (InputStream inputStream = socket.getInputStream();
+//				OutputStream outputStream = socket.getOutputStream()) {
+//				String tlgCtt = StringUtils.join("0048HDRREQFBAK", LocalDateTime.now().format(DateTimeFormatter.ofPattern("MMddHHmmss")),
+//				StringUtils.rightPad(StringUtils.left(fileNm, 8), 8),
+//				StringUtils.rightPad(StringUtils.left(fileDt, 8), 8),
+//				StringUtils.repeat('0', 12));
+//				log.info(">{}]", tlgCtt);
+//				IOUtils.write(tlgCtt, outputStream, "EUC-KR");
+//				byte[] byteArray = IOUtils.toByteArray(inputStream, 7);
+//				tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
+//				if (!StringUtils.isNumeric(StringUtils.left(tlgCtt, 4)) ||
+//					!Strings.CS.endsWith(tlgCtt, "HDR")) {
+//					throw new IOException(tlgCtt);
+//				}
+//				try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
+//					IOUtils.write(byteArray, byteArrayOutputStream);
+//					byteArray = IOUtils.toByteArray(inputStream, NumberUtils.toInt(StringUtils.left(tlgCtt, 4)) - 3);
+//					IOUtils.write(byteArray, byteArrayOutputStream);
+//					byteArray = byteArrayOutputStream.toByteArray();
+//				}
+//				tlgCtt = IOUtils.toString(byteArray, "EUC-KR");
+//				log.info("<{}]", tlgCtt);
+//				long fileSz = NumberUtils.toLong(StringUtils.right(tlgCtt, 12));
+//				if (0 >= fileSz) {
+//					throw new FileNotFoundException(fileNm);
+//				}
+//				try (FileOutputStream fileOutputStream = FileUtils.openOutputStream(file)) {
+//					long l = IOUtils.copyLarge(inputStream, fileOutputStream);
+//					log.info(">{}, {}", file, l);
+//				}
+//			}
+//		}
+//		Path path = Files.copy(file.toPath(), FileUtils.getFile(systemProperties.getShrd().getRecv(), fileNm).toPath(),
+//		StandardCopyOption.REPLACE_EXISTING);
+//		log.info("copied {}, {}", file, path);
+//		return path.toFile();
+//	}
 
 	/**
 	 * 

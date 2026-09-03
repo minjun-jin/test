@@ -44,7 +44,7 @@ publishing {
 			url = 'https://git.bwg.co.kr/gitlab/api/v4/projects/1410/packages/maven'
 			credentials(HttpHeaderCredentials) {
 				name = 'Deploy-Token'
-				value = 'gldt-gqdh1Diu6GKUz4ZndXYi'
+				value = ''
 			}
 			authentication {
 				header(HttpHeaderAuthentication)
@@ -60,7 +60,7 @@ repositories {
 		name = 'GitLab'
 		credentials(HttpHeaderCredentials) {
 			name = 'Deploy-Token'
-			value = 'gldt-gqdh1Diu6GKUz4ZndXYi'
+			value = ''
 		}
 		authentication {
 			header(HttpHeaderAuthentication)
